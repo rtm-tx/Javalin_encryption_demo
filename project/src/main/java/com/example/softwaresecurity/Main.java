@@ -14,7 +14,8 @@ import java.util.Base64;
 public class Main {
     
     private static SecretKey aesSecretKey = generateAesKey();
-    private static SecretKey blowfishSecretKey = generateBlowfishKey();   
+    private static SecretKey blowfishSecretKey = generateBlowfishKey();
+    private static SecretKey rc4SecretKey = generateRC4Key();  
 
     // Generate a secret key
     private static SecretKey generateAesKey() {
@@ -31,6 +32,17 @@ public class Main {
     private static SecretKey generateBlowfishKey() {
         try {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("Blowfish");
+            keyGenerator.init(256);
+            return keyGenerator.generateKey();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // Secret key for RC4
+    private static SecretKey generateRC4Key() {
+        try {
+            KeyGenerator keyGenerator = KeyGenerator.getInstance("RC4");
             keyGenerator.init(256);
             return keyGenerator.generateKey();
         } catch (NoSuchAlgorithmException e) {
@@ -90,6 +102,32 @@ public class Main {
         return cipher.doFinal(encrypted);
     }
 
+    // RC4 Encrypt and decrypt text
+    private static String encryptRC4(String input) throws Exception {
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.ENCRYPT_MODE, rc4SecretKey);
+        byte[] encrypted = cipher.doFinal(input.getBytes());
+        return Base64.getEncoder().encodeToString(encrypted);
+    }
+    private static String decryptRC4(String encrypted) throws Exception {
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.DECRYPT_MODE, rc4SecretKey);
+        byte[] original = cipher.doFinal(Base64.getDecoder().decode(encrypted));
+        return new String(original);
+    }
+
+    // RC4 Encrypt and decrypt files
+    private static byte[] fileEncryptRC4(byte[] fileInput) throws Exception {
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.ENCRYPT_MODE, rc4SecretKey);
+        return cipher.doFinal(fileInput);
+    }
+    private static byte[] fileDecryptRC4(byte[] encrypted) throws Exception {
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.DECRYPT_MODE, rc4SecretKey);
+        return cipher.doFinal(encrypted);
+    }
+
     public static void main(String[] args) {
         Javalin app = Javalin.create(config -> {
             config.jetty.multipartConfig.cacheDirectory("\\temp");
@@ -130,6 +168,7 @@ public class Main {
                 .append("<input type='text' name='text'>")
                 .append("<input type='submit' name='action' value='AES Encrypt'>")
                 .append("<input type='submit' name='action' value='Blowfish Encrypt'>")
+                .append("<input type='submit' name='action' value='RC4 Encrypt'>")
                 .append("</form>");
 
             // Form for file upload with file size validation
@@ -139,6 +178,7 @@ public class Main {
                 .append("<input type='hidden' id='methodInput' name='method' value=''>") // Single hidden input for method
                 .append("<input type='submit' name='action' value='AES Encrypt'>")
                 .append("<input type='submit' name='action' value='Blowfish Encrypt'>")
+                .append("<input type='submit' name='action' value='RC4 Encrypt'>")
                 .append("</form>");
 
             html.append("</body></html>");
@@ -153,9 +193,11 @@ public class Main {
                 String encryptedText;
                 if ("Blowfish Encrypt".equals(action)) {
                     encryptedText = encryptBlowfish(text);
+                } else if ("RC4 Encrypt".equals(action)) {
+                    encryptedText = encryptRC4(text);
                 } else {
                     encryptedText = encrypt(text);
-                }
+                } 
         
                 ctx.html("<html><body>Encrypted text: " + encryptedText +
                     "<form action='/decrypt-text' method='post'>" +
@@ -177,9 +219,12 @@ public class Main {
                 try {
                     if ("Blowfish Encrypt".equals(method)) {
                         decryptedText = decryptBlowfish(encryptedText);
+                    } else if ("RC4 Encrypt".equals(method)) {
+                        decryptedText = decryptRC4(encryptedText);
                     } else {
                         decryptedText = decrypt(encryptedText);
                     }
+
                     ctx.html("<html><body><header><a href='/home'>Back to Home</a></header>" +
                         "<br>Decrypted Text: "+ decryptedText + "</body></html>");
                 } catch (Exception e) {
@@ -210,6 +255,10 @@ public class Main {
                         encryptedFile = fileEncryptBlowfish(fileContent);
                         System.out.println("Encrytion method: Blowfish");
                         encmethod = "blowfish";
+                    } else if ("RC4 Encrypt".equals(action)) {
+                        encryptedFile = fileEncryptRC4(fileContent);
+                        System.out.println("Encrytion method: RC4");
+                        encmethod = "rc4";
                     } else {
                         encryptedFile = fileEncrypt(fileContent);
                         System.out.println("Encrytion method: AES");
@@ -249,6 +298,9 @@ public class Main {
                     if ("blowfish".equals(encmethod)) {
                         System.out.println("Using Blowfish for decryption");
                         decryptedBytes = fileDecryptBlowfish(Base64.getDecoder().decode(encryptedContent));
+                    } else if ("rc4".equals(encmethod)) {
+                        System.out.println("Using RC4 for decryption");
+                        decryptedBytes = fileDecryptRC4(Base64.getDecoder().decode(encryptedContent));
                     } else {
                         System.out.println("Using AES for decryption");
                         decryptedBytes = fileDecrypt(Base64.getDecoder().decode(encryptedContent));
