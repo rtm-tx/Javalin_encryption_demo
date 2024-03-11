@@ -75,6 +75,26 @@ public class Main {
         cipher.init(Cipher.DECRYPT_MODE, aesSecretKey);
         return cipher.doFinal(encrypted);
     }
+    private static int[] benchmarkAes(byte[] fileInput) throws Exception {
+        int[] times = new int[20];
+        long totalTime = 0;
+        long start, end;
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, aesSecretKey); // should be ENCRYPT_MODE for encryptbenchmark
+
+        for (int i = 0; i < times.length; i++) {
+            start = System.currentTimeMillis();
+            cipher.doFinal(fileInput);
+            end = System.currentTimeMillis();
+
+            totalTime += end - start;
+            times[i] = (int) (end - start);
+            System.out.println("Round " + i + " took " + times[i] + "ms");
+        }
+
+        System.out.println("Average time: " + (totalTime / times.length) + "ms");
+        return times;
+    }
 
     // Blowfish Encrypt and decrypt text
     private static String encryptBlowfish(String input) throws Exception {
@@ -100,6 +120,26 @@ public class Main {
         Cipher cipher = Cipher.getInstance("Blowfish");
         cipher.init(Cipher.DECRYPT_MODE, blowfishSecretKey);
         return cipher.doFinal(encrypted);
+    }
+    private static int[] benchmarkBlow(byte[] fileInput) throws Exception {
+        int[] times = new int[20];
+        long totalTime = 0;
+        long start, end;
+        Cipher cipher = Cipher.getInstance("Blowfish");
+        cipher.init(Cipher.ENCRYPT_MODE, blowfishSecretKey);
+
+        for (int i = 0; i < times.length; i++) {
+            start = System.currentTimeMillis();
+            cipher.doFinal(fileInput);
+            end = System.currentTimeMillis();
+
+            totalTime += end - start;
+            times[i] = (int) (end - start);
+            System.out.println("Round " + i + " took " + times[i] + "ms");
+        }
+
+        System.out.println("Average time: " + (totalTime / times.length) + "ms");
+        return times;
     }
 
     // RC4 Encrypt and decrypt text
@@ -127,11 +167,31 @@ public class Main {
         cipher.init(Cipher.DECRYPT_MODE, rc4SecretKey);
         return cipher.doFinal(encrypted);
     }
+    private static int[] benchmarkRc4(byte[] fileInput) throws Exception {
+        int[] times = new int[20];
+        long totalTime = 0;
+        long start, end;
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.ENCRYPT_MODE, rc4SecretKey); // should be ENCRYPT_MODE for encryptbenchmark
+
+        for (int i = 0; i < times.length; i++) {
+            start = System.currentTimeMillis();
+            cipher.doFinal(fileInput);
+            end = System.currentTimeMillis();
+
+            totalTime += end - start;
+            times[i] = (int) (end - start);
+            System.out.println("Round " + i + " took " + times[i] + "ms");
+        }
+
+        System.out.println("Average time: " + (totalTime / times.length) + "ms");
+        return times;
+    }
 
     public static void main(String[] args) {
         Javalin app = Javalin.create(config -> {
             config.jetty.multipartConfig.cacheDirectory("\\temp");
-            config.jetty.multipartConfig.maxFileSize(1, SizeUnit.MB); // 1MB file limit
+            config.jetty.multipartConfig.maxFileSize(10, SizeUnit.MB); // 10MB file limit
         }).start(7000);
         app.before(ctx -> {
             ctx.header("X-Content-Type-Options", "nosniff");
@@ -151,8 +211,8 @@ public class Main {
                 .append("    var fileInput = document.getElementById('fileInput');")
                 .append("    if (fileInput.files.length > 0) {")
                 .append("        var fileSize = fileInput.files[0].size;") // Size in bytes
-                .append("        if (fileSize > 512000) {") // 500KB limit
-                .append("            alert('File size exceeds limit of 500KB.');")
+                .append("        if (fileSize > 10485760) {") // 10MB limit
+                .append("            alert('File size exceeds limit of 10MB.');")
                 .append("            fileInput.value = '';") // Clear the file input
                 .append("            return false;")
                 .append("        }")
@@ -177,8 +237,11 @@ public class Main {
                 .append("<input type='file' id='fileInput' name='file' accept='.txt,.csv,.pdf,.jpg' onchange='validateFileSize()'>")
                 .append("<input type='hidden' id='methodInput' name='method' value=''>") // Single hidden input for method
                 .append("<input type='submit' name='action' value='AES Encrypt'>")
+                .append("<input type='submit' name='action' value='AES Bench'>")
                 .append("<input type='submit' name='action' value='Blowfish Encrypt'>")
+                .append("<input type='submit' name='action' value='Blowfish Bench'>")
                 .append("<input type='submit' name='action' value='RC4 Encrypt'>")
+                .append("<input type='submit' name='action' value='RC4 Bench'>")
                 .append("</form>");
 
             html.append("</body></html>");
@@ -251,7 +314,43 @@ public class Main {
                     byte[] fileContent = is.readAllBytes();
                     byte[] encryptedFile;
                     String encmethod;
-                    if ("Blowfish Encrypt".equals(action)) {
+                    if ("AES Bench".equals(action)) {
+                        int[] times = benchmarkAes(fileContent);
+                        StringBuilder htmlBuilder = new StringBuilder("<html><body>File encrypted successfully.<br><p>Encryption method: AES</p>");
+                        for (int i = 0; i < times.length; i++) {
+                            htmlBuilder.append("Round ").append(i + 1).append(": ").append(times[i]).append("ms<br>");
+                        }
+                        htmlBuilder.append("<p>Average time: ").append(times[times.length / 2])
+                            .append("ms</p>").append("<a href='/home'>Back to Home</a><br>")
+                            .append("<form action='/home' method='get'>")
+                            .append("</form></body></html>");
+                        ctx.html(htmlBuilder.toString());
+                        return;
+                    } else if ("Blowfish Bench".equals(action)){
+                        int[] times = benchmarkBlow(fileContent);
+                        StringBuilder htmlBuilder = new StringBuilder("<html><body>File encrypted successfully.<br><p>Encryption method: Blowfish</p>");
+                        for (int i = 0; i < times.length; i++) {
+                            htmlBuilder.append("Round ").append(i + 1).append(": ").append(times[i]).append("ms<br>");
+                        }
+                        htmlBuilder.append("<p>Average time: ").append(times[times.length / 2])
+                            .append("ms</p>").append("<a href='/home'>Back to Home</a><br>")
+                            .append("<form action='/home' method='get'>")
+                            .append("</form></body></html>");
+                        ctx.html(htmlBuilder.toString());
+                        return;
+                    } else if ("RC4 Bench".equals(action)){                   
+                        int[] times = benchmarkRc4(fileContent);
+                        StringBuilder htmlBuilder = new StringBuilder("<html><body>File encrypted successfully.<br><p>Encryption method: RC4</p>");
+                        for (int i = 0; i < times.length; i++) {
+                            htmlBuilder.append("Round ").append(i + 1).append(": ").append(times[i]).append("ms<br>");
+                        }
+                        htmlBuilder.append("<p>Average time: ").append(times[times.length / 2])
+                            .append("ms</p>").append("<a href='/home'>Back to Home</a><br>")
+                            .append("<form action='/home' method='get'>")
+                            .append("</form></body></html>");
+                        ctx.html(htmlBuilder.toString());
+                        return;
+                    } else if ("Blowfish Encrypt".equals(action)) {
                         encryptedFile = fileEncryptBlowfish(fileContent);
                         System.out.println("Encrytion method: Blowfish");
                         encmethod = "blowfish";
@@ -264,7 +363,6 @@ public class Main {
                         System.out.println("Encrytion method: AES");
                         encmethod = "aes";
                     }
-
                     ctx.html("<html><body>File encrypted successfully." +
                         "<form action='/decrypt-file' method='post'>" +
                         "<input type='hidden' name='encryptedContent' value='" + Base64.getEncoder().encodeToString(encryptedFile) + "'>" +
